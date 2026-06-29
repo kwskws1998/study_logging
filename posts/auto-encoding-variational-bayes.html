@@ -58,12 +58,12 @@
           <h1>Auto-Encoding Variational Bayes: Variational Autoencoder Notes</h1>
           <div class="post-meta">
             <time datetime="2026-06-30">2026.06.30</time>
-            <span>13 min</span>
+            <span>12 min</span>
           </div>
         </header>
 
         <p>
-          This note follows the VAE review deck: autoencoder, variational autoencoder, encoder outputs, reparameterization, decoder reconstruction, KL divergence, ELBO, and a compact implementation sketch. The core intuition is kept, but the mathematically fatal sign and notation errors are corrected.
+          This note follows the VAE review deck: autoencoder, variational autoencoder, encoder outputs, reparameterization, decoder reconstruction, KL divergence, ELBO, and training loss. The core intuition is kept while the notation is written in standard VAE form.
         </p>
 
         <p class="source-evidence">
@@ -147,11 +147,8 @@
           \]
         </div>
         <p>
-          The \(\odot\) matters: this is elementwise multiplication. In code terms, sample standard normal noise with the same shape as the standard deviation, then shift and scale it by \(\mu\) and \(\sigma\).
+          The \(\odot\) matters: this is elementwise multiplication. The sampled standard normal noise has the same shape as the standard deviation, and \(z\) is obtained by shifting and scaling that noise with \(\mu\) and \(\sigma\).
         </p>
-        <pre><code>std = torch.exp(0.5 * logvar)
-eps = torch.randn_like(std)
-z = mu + std * eps</code></pre>
 
         <h2>Decoder and Reconstruction</h2>
         <p>
@@ -222,9 +219,9 @@ z = mu + std * eps</code></pre>
           \]
         </div>
 
-        <h2>Critical Sign Correction</h2>
+        <h2>Numeric Loss Example</h2>
         <p>
-          The deck writes this value as:
+          In the deck's numeric example, the KL-related quantity is written as:
         </p>
         <div class="math-display">
           \[
@@ -235,7 +232,7 @@ z = mu + std * eps</code></pre>
           \]
         </div>
         <p>
-          That expression is the \(-D_{\mathrm{KL}}\) term inside the ELBO. It is not the positive KL penalty used in the minimized loss. Therefore, the final loss should add \(+0.56882\), not \(-0.56882\).
+          This is the negative KL contribution that appears inside the ELBO. Once the objective is converted into a minimized training loss, the KL term is used as a positive penalty, so the same numeric magnitude contributes as \(+0.56882\).
         </p>
         <div class="math-display">
           \[
@@ -247,26 +244,12 @@ z = mu + std * eps</code></pre>
           \]
         </div>
         <p>
-          So the slide's conclusion \(6.729791\) is a sign error if the section is describing final training loss.
+          If \(7.298611\) is the reconstruction loss term, the minimized loss is therefore \(7.867431\). The value \(6.729791\) would correspond to subtracting the KL penalty after already switching to the minimization objective.
         </p>
-
-        <h2>Implementation Sketch</h2>
-        <p>
-          The core implementation is short. The key is that the model predicts \(\mu\) and \(\log\sigma^2\), samples \(z\) through reparameterization, and adds a positive KL term to the reconstruction loss.
-        </p>
-        <pre><code>def reparameterize(mu, logvar):
-    std = torch.exp(0.5 * logvar)
-    eps = torch.randn_like(std)
-    return mu + std * eps
-
-def vae_loss(x, x_hat, mu, logvar):
-    recon = torch.nn.functional.mse_loss(x_hat, x, reduction="sum")
-    kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    return recon + kl</code></pre>
 
         <h2>Takeaway</h2>
         <p>
-          The deck's intuitive story is mostly usable: AE learns a compressed code, VAE learns a distribution around a code, reparameterization makes stochastic sampling trainable, and the objective balances reconstruction quality against a latent-space regularizer. The fatal corrections are the encoder output notation, the log-variance conversion wording, the \(q_{\phi}\) and \(p_{\theta}\) roles, and the KL sign in the final loss.
+          The deck's intuitive story is mostly usable: AE learns a compressed code, VAE learns a distribution around a code, reparameterization makes stochastic sampling trainable, and the objective balances reconstruction quality against a latent-space regularizer. The points that need care are the encoder output notation, the log-variance conversion wording, the \(q_{\phi}\) and \(p_{\theta}\) roles, and the KL sign after converting ELBO maximization into loss minimization.
         </p>
 
         <p class="source-note">
