@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A study note on BERT, bidirectional Transformer encoders, input representation, masked language modeling, next sentence prediction, and fine-tuning.">
+    <title>BERT: Pre-training of Deep Bidirectional Transformers | Study Logging</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem("theme");
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme = stored || (prefersDark ? "dark" : "light");
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [["\\(", "\\)"]],
+          displayMath: [["\\[", "\\]"]]
+        },
+        svg: {
+          fontCache: "global"
+        }
+      };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <link rel="stylesheet" href="../assets/css/styles.css">
+  </head>
+  <body>
+    <div class="reading-progress" aria-hidden="true"></div>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <nav class="nav" aria-label="Primary navigation">
+        <a class="brand" href="../index.html">
+          <span class="brand-mark" aria-hidden="true">SL</span>
+          <span>Study Logging</span>
+        </a>
+        <div class="nav-actions">
+          <a href="../about.html">About</a>
+          <a href="https://github.com/" rel="noreferrer">GitHub</a>
+          <button class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+            <span class="theme-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" class="page-shell">
+      <article class="prose">
+        <a class="back-link" href="../index.html">&larr; Post list</a>
+        <header class="post-header">
+          <p class="eyebrow">Research notes</p>
+          <h1>BERT: Pre-training of Deep Bidirectional Transformers</h1>
+          <div class="post-meta">
+            <time datetime="2026-06-30">2026.06.30</time>
+            <span>13 min</span>
+          </div>
+        </header>
+
+        <p>
+          This note follows the BERT review deck: motivation, architecture, input representation, the [CLS] token, self-attention, multi-head attention, pre-training tasks, fine-tuning, results, and scaled dot-product attention. The slide figures are preserved, while a few high-impact wording issues are written in standard BERT terminology.
+        </p>
+
+        <p class="source-evidence">
+          Paper anchor: <q>jointly conditioning on both left and right context</q>, <q>mask 15% of all WordPiece tokens</q>, <q>actual next sentence</q>, <q>bidirectional Transformer</q>.
+        </p>
+
+        <h2>Why BERT?</h2>
+        <p>
+          The starting point is the limitation of earlier contextual language representations. ELMo combines left-to-right and right-to-left language model representations, but the bidirectional information is joined after the independently trained directions. GPT-1 uses a Transformer, but its pre-training is left-to-right, so a token cannot attend to future context during pre-training.
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/why-bert-context.png" alt="Slide comparing ELMo, GPT-1, and BERT context usage" loading="lazy">
+          <figcaption>Original slide figure: BERT is motivated by deep bidirectional context, compared with shallow bidirectional ELMo-style features and left-to-right GPT-style pre-training.</figcaption>
+        </figure>
+        <p>
+          BERT's core move is to make deep bidirectional sentence understanding possible inside the Transformer stack. Instead of learning one static vector for each word type, BERT learns contextualized token representations: the representation for a token depends on the surrounding sequence.
+        </p>
+
+        <h2>Model Architecture</h2>
+        <p>
+          BERT uses the encoder side of the Transformer architecture. A practical way to read the architecture is: take the contextual encoder idea from ELMo, replace the recurrent encoder with a deeper Transformer encoder stack, and pre-train it with objectives that allow bidirectional context.
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/model-architecture.png" alt="BERT architecture slide showing Transformer encoder, masked token prediction, and BERT base and large settings" loading="lazy">
+          <figcaption>Original slide figure: BERT uses a Transformer encoder stack and predicts masked tokens during pre-training.</figcaption>
+        </figure>
+        <p>
+          The standard model sizes are:
+        </p>
+        <ul>
+          <li>BERT_BASE: 12 layers, hidden size 768, 12 attention heads, about 110M parameters.</li>
+          <li>BERT_LARGE: 24 layers, hidden size 1024, 16 attention heads, about 340M parameters.</li>
+        </ul>
+        <p>
+          The important distinction is not only parameter count. The key architectural point is that every layer can mix left and right context through bidirectional self-attention.
+        </p>
+
+        <h2>Input Representation</h2>
+        <p>
+          BERT starts with WordPiece token ids. The deck's example sentence, "My dog is lovely.", becomes a sequence of vocabulary ids, and those ids index rows in a trainable token embedding matrix. In the original BERT setup, the vocabulary is about 30,000 WordPiece tokens and BERT_BASE uses 768-dimensional embeddings.
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/input-token-embedding.png" alt="BERT token embedding slide showing token ids and a 30000 by 768 embedding matrix" loading="lazy">
+          <figcaption>Original slide figure: token ids look up trainable vectors from the token embedding matrix.</figcaption>
+        </figure>
+        <p>
+          The final input representation is the sum of three vectors for each token: token embedding, segment embedding, and position embedding.
+        </p>
+        <div class="math-display">
+          \[
+          x_i =
+          E_{\mathrm{token}}(i)
+          +
+          E_{\mathrm{segment}}(i)
+          +
+          E_{\mathrm{position}}(i)
+          \]
+        </div>
+
+        <h2>Segment and Position Embeddings</h2>
+        <p>
+          Segment embeddings tell BERT whether a token belongs to sentence A or sentence B. The vectors \(E_A\) and \(E_B\) are learned vectors added to the corresponding tokens. This lets BERT preserve each token's lexical representation while also indicating sentence membership.
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/segment-position-embedding.png" alt="BERT segment and position embedding slide showing sentence A and B embeddings and learned position embeddings" loading="lazy">
+          <figcaption>Original slide figure: segment embeddings separate sentence A from sentence B, and learned position embeddings inject token order.</figcaption>
+        </figure>
+        <p>
+          BERT also uses learned position embeddings. This differs from the sinusoidal positional encoding used in the original Transformer paper, but the role is the same: the model needs explicit information about token order because self-attention itself is permutation-invariant.
+        </p>
+
+        <h2>The [CLS] Token</h2>
+        <p>
+          The [CLS] token is placed at the beginning of the sequence. After the encoder stack, the final hidden state at this position is used as an aggregate sequence representation for classification-style tasks.
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/cls-token-classification.png" alt="BERT CLS token slide showing the first output vector used for classification through a linear layer and softmax" loading="lazy">
+          <figcaption>Original slide figure: for sequence classification, the final hidden state of [CLS] is sliced out and passed to a task-specific classifier.</figcaption>
+        </figure>
+        <p>
+          If the BERT output for a length-10 input is \(10 \times 768\), classification commonly uses the first row, corresponding to [CLS]. A linear layer maps that \(1 \times 768\) vector to class logits, and softmax converts logits into probabilities.
+        </p>
+
+        <h2>Self-Attention in BERT</h2>
+        <p>
+          Self-attention in BERT follows the same scaled dot-product attention mechanism used in the Transformer encoder. The difference from encoder-decoder attention is that \(Q\), \(K\), and \(V\) are all projected from the same input sequence.
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/self-attention-in-action.png" alt="Self-attention slide showing Q K V projections and an example scaled dot-product attention computation" loading="lazy">
+          <figcaption>Original slide figure: Q, K, and V are generated from the same side's inputs in self-attention.</figcaption>
+        </figure>
+        <div class="math-display">
+          \[
+          \mathrm{Attention}(Q,K,V)
+          =
+          \mathrm{softmax}
+          \left(
+          \frac{QK^\top}{\sqrt{d_k}}
+          \right)V
+          \]
+        </div>
+        <p>
+          The scaling denominator depends on the key dimension for a head. In BERT_BASE, the hidden size is 768 and there are 12 heads, so each head has \(d_k=64\), making \(\sqrt{d_k}=8\). In the slide's toy figure with \(d_k=4\), the correct toy denominator is \(2\).
+        </p>
+
+        <h2>Multi-Head Attention</h2>
+        <p>
+          Multi-head attention can be understood as several learned attention filters running in parallel. Each head has separate projection matrices, so different heads can capture different token-to-token relations.
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/multi-head-attention.png" alt="Multi-head attention slide comparing heads to CNN filters and showing concatenation followed by a linear transformation" loading="lazy">
+          <figcaption>Original slide figure: multiple attention heads produce per-head outputs, concatenate them, and apply an output projection.</figcaption>
+        </figure>
+        <p>
+          In BERT_BASE, each token representation has hidden size 768, and each of the 12 heads works with 64-dimensional projected \(Q\), \(K\), and \(V\) vectors. The sequence length is separate from this per-head feature dimension.
+        </p>
+        <div class="math-display">
+          \[
+          \mathrm{head}_i =
+          \mathrm{Attention}(QW_i^Q, KW_i^K, VW_i^V)
+          \]
+        </div>
+        <div class="math-display">
+          \[
+          \mathrm{MultiHead}(Q,K,V)
+          =
+          \mathrm{Concat}(\mathrm{head}_1,\ldots,\mathrm{head}_h)W^O
+          \]
+        </div>
+
+        <h2>Pre-Training Task 1: MLM</h2>
+        <p>
+          BERT is pre-trained on unlabeled text. The first pre-training task is masked language modeling. Randomly selected tokens are hidden from the input, and the model predicts the original token id from the final hidden representation.
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/masked-language-modeling.png" alt="BERT masked language modeling slide showing masked tokens in an input sequence and output probabilities for the masked token" loading="lazy">
+          <figcaption>Original slide figure: MLM masks a subset of input tokens and predicts the missing vocabulary ids.</figcaption>
+        </figure>
+        <p>
+          The selection rate is 15% of input WordPiece tokens. To reduce the mismatch between pre-training and fine-tuning, the selected positions are not always replaced by [MASK]:
+        </p>
+        <ul>
+          <li>80% of selected positions are replaced with [MASK].</li>
+          <li>10% are replaced with a random token.</li>
+          <li>10% are left unchanged.</li>
+        </ul>
+        <p>
+          The loss is only applied to the selected prediction positions, not to every token in the input.
+        </p>
+
+        <h2>Pre-Training Task 2: NSP</h2>
+        <p>
+          The second original BERT pre-training task is next sentence prediction. BERT receives sentence A and sentence B. In half of the examples, B is the real sentence that follows A. In the other half, B is a random sentence sampled from the corpus.
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/next-sentence-prediction.png" alt="BERT next sentence prediction slide showing sentence A and sentence B examples and the CLS token used for NSP" loading="lazy">
+          <figcaption>Original slide figure: NSP trains BERT to distinguish IsNext from NotNext using the [CLS] representation.</figcaption>
+        </figure>
+        <p>
+          The [CLS] vector \(C\) is used for the NSP classifier. This task was included to train text-pair representations for downstream tasks such as natural language inference and question answering.
+        </p>
+
+        <h2>Fine-Tuning</h2>
+        <p>
+          Fine-tuning keeps the pre-trained BERT parameters and adds only a small task-specific output layer. The entire model is then updated on labeled task data.
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/fine-tuning-tasks.png" alt="BERT fine-tuning slide showing sequence-level and token-level downstream tasks" loading="lazy">
+          <figcaption>Original slide figure: BERT fine-tuning uses the same encoder for sequence-level and token-level tasks.</figcaption>
+        </figure>
+        <p>
+          Sequence-level tasks use the [CLS] representation, while token-level tasks use the corresponding token representations. This is one reason BERT's architecture is reusable across classification, sentence-pair, tagging, and question-answering setups.
+        </p>
+
+        <h2>Results</h2>
+        <p>
+          The deck's results slide emphasizes the empirical payoff: BERT substantially improved then-standard NLP benchmarks such as GLUE, SQuAD, and SWAG. The main lesson is that the combination of deep bidirectional pre-training and simple fine-tuning was strong across both sentence-level and token-level tasks.
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/results.png" alt="BERT results slide showing benchmark result tables" loading="lazy">
+          <figcaption>Original slide figure: BERT results across language understanding benchmarks.</figcaption>
+        </figure>
+
+        <h2>Appendix: Why Scaled Dot-Product Attention?</h2>
+        <p>
+          The scaling factor in attention controls the size of dot-product logits before softmax. If query and key components have mean 0 and variance 1, the dot product variance grows with \(d_k\):
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/scaled-dot-product-variance.png" alt="Scaled dot-product attention appendix slide showing variance and standard deviation when dk equals 64" loading="lazy">
+          <figcaption>Original slide figure: when \(d_k=64\), dot-product scores can have standard deviation 8.</figcaption>
+        </figure>
+        <div class="math-display">
+          \[
+          \operatorname{Var}(q \cdot k) = d_k
+          \]
+        </div>
+        <p>
+          With \(d_k=64\), the standard deviation is \(8\). Scores like -10, 9, or 15 become plausible, and large logits can push softmax toward saturation.
+        </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/bert/scaled-dot-product-softmax.png" alt="Scaled dot-product attention appendix slide showing softmax saturation for z1 equals 9 and z2 equals 1" loading="lazy">
+          <figcaption>Original slide figure: large logit differences can make softmax weights nearly 0 or 1.</figcaption>
+        </figure>
+        <p>
+          The slide's example \(z_1=9\), \(z_2=1\) yields attention weights near [0.9997, 0.0003]. Dividing by \(\sqrt{d_k}\) keeps logits in a more workable range and helps avoid vanishing gradients through a saturated softmax.
+        </p>
+
+        <h2>Takeaway</h2>
+        <p>
+          BERT is best understood as a deeply bidirectional Transformer encoder trained with two original pre-training tasks: MLM for token-level bidirectional context and NSP for text-pair relationship modeling. Its input representation sums token, segment, and learned position embeddings; [CLS] provides a sequence-level representation; and fine-tuning adapts the same encoder to many downstream tasks with minimal task-specific architecture.
+        </p>
+
+        <p class="source-note">
+          Source: Devlin et al., <a href="https://arxiv.org/abs/1810.04805" rel="noreferrer">BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding</a>.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <p>Study Logging</p>
+      <p>Built for GitHub Pages.</p>
+    </footer>
+
+    <script src="../assets/js/main.js"></script>
+  </body>
+</html>
