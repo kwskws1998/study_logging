@@ -443,6 +443,25 @@ h3 {
   font-weight: 650;
 }
 
+.source-evidence {
+  border-left: 3px solid var(--accent);
+  padding-left: 14px;
+}
+
+.math-display {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin: 18px 0;
+  padding: 14px 16px;
+}
+
+.math-display mjx-container {
+  margin: 0 !important;
+  min-width: max-content;
+}
+
 .source-note {
   margin-top: 42px;
   padding-top: 20px;
