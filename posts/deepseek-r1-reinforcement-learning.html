@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A study note on DeepSeek-R1, GRPO, rule-based rewards, cold start data, and distillation.">
+    <title>DeepSeek-R1: Reinforcement Learning for Reasoning | Study Logging</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem("theme");
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme = stored || (prefersDark ? "dark" : "light");
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [["\\(", "\\)"]],
+          displayMath: [["\\[", "\\]"]]
+        },
+        svg: {
+          fontCache: "global"
+        }
+      };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <link rel="stylesheet" href="../assets/css/styles.css">
+  </head>
+  <body>
+    <div class="reading-progress" aria-hidden="true"></div>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <nav class="nav" aria-label="Primary navigation">
+        <a class="brand" href="../index.html">
+          <span class="brand-mark" aria-hidden="true">SL</span>
+          <span>Study Logging</span>
+        </a>
+        <div class="nav-actions">
+          <a href="../about.html">About</a>
+          <a href="https://github.com/" rel="noreferrer">GitHub</a>
+          <button class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+            <span class="theme-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" class="page-shell">
+      <article class="prose">
+        <a class="back-link" href="../index.html">&larr; Post list</a>
+        <header class="post-header">
+          <p class="eyebrow">Research notes</p>
+          <h1>DeepSeek-R1: Reinforcement Learning for Reasoning</h1>
+          <div class="post-meta">
+            <time datetime="2026-06-30">2026.06.30</time>
+            <span>14 min</span>
+          </div>
+        </header>
+
+        <p>
+          This note follows the DeepSeek-R1 review deck and keeps only the English substance. Korean duplicate sections are folded into the same English explanation. A few fatal wording issues are corrected: GRPO is described as the RL algorithm used for DeepSeek-R1-Zero and DeepSeek-R1, the policy ratio is treated as a probability ratio, and the KL term is framed as a reference-policy regularizer rather than a vague mode-collapse fix.
+        </p>
+
+        <p class="source-evidence">
+          Paper anchor: <q>pure reinforcement learning</q>, <q>rule-based rewards</q>, <q>poor readability, and language mixing</q>, <q>language consistency reward</q>, <q>estimating the advantages from group scores</q>.
+        </p>
+
+        <h2>Motivation</h2>
+        <p>
+          DeepSeek-R1 is about incentivizing reasoning behavior in large language models using reinforcement learning. The headline result is not just benchmark performance; it is that long chain-of-thought style behavior, reflection, verification, and strategy switching can emerge under an RL objective when the task has reliable verifiers.
+        </p>
+        <p>
+          DeepSeek-R1-Zero starts from DeepSeek-V3-Base and applies RL directly, without an initial supervised fine-tuning stage for reasoning traces. DeepSeek-R1 then adds a more structured multi-stage pipeline to fix readability, language mixing, and broader alignment issues.
+        </p>
+
+        <h2>DeepSeek-R1-Zero</h2>
+        <p>
+          The R1-Zero experiment tests a sharp claim: reasoning ability can be induced with RL alone on verifiable tasks. The model receives reward from final-answer correctness and output format, not from human-written reasoning trajectories. This makes the experiment useful because it tests whether the model can discover its own reasoning strategy instead of copying a supervised chain-of-thought style.
+        </p>
+        <p>
+          The tradeoff is that R1-Zero has rough behavior: its reasoning can be hard to read, and it can mix languages. This is why the later DeepSeek-R1 pipeline introduces cold-start data, more SFT, and another RL stage.
+        </p>
+
+        <h2>GRPO</h2>
+        <p>
+          GRPO stands for Group Relative Policy Optimization. The main practical difference from PPO is that GRPO removes the learned value model. Instead of training a separate critic to estimate expected return, it samples a group of outputs for the same question and normalizes each output's reward relative to the group.
+        </p>
+        <div class="math-display">
+          \[
+          A_i =
+          \frac{
+            r_i - \operatorname{mean}(\{r_1,r_2,\ldots,r_G\})
+          }{
+            \operatorname{std}(\{r_1,r_2,\ldots,r_G\})
+          }
+          \]
+        </div>
+        <p>
+          Intuitively, an answer has positive advantage if it scores higher than the other sampled answers to the same question. It has negative advantage if it is worse than the group average. This is not a global quality score; it is a within-question relative score.
+        </p>
+
+        <h2>GRPO Objective</h2>
+        <p>
+          GRPO still uses a PPO-style clipped surrogate objective. For each sampled output \(o_i\), define the probability ratio:
+        </p>
+        <div class="math-display">
+          \[
+          \rho_i(\theta) =
+          \frac{\pi_{\theta}(o_i \mid q)}
+               {\pi_{\theta_{\mathrm{old}}}(o_i \mid q)}
+          \]
+        </div>
+        <p>
+          The ratio is not simply "the policy". It is the new policy's probability of the output divided by the old rollout policy's probability of the same output.
+        </p>
+        <div class="math-display">
+          \[
+          \mathcal{J}_{\mathrm{clip}}(\theta)
+          =
+          \min\left(
+            \rho_i(\theta)A_i,\,
+            \operatorname{clip}(\rho_i(\theta),1-\epsilon,1+\epsilon)A_i
+          \right)
+          \]
+        </div>
+        <p>
+          If \(A_i > 0\), the model is rewarded for increasing the probability of that output, but clipping prevents the increase from becoming too large. If \(A_i < 0\), the model is pushed away from that output, again with a clipped trust region.
+        </p>
+
+        <h2>KL Regularization</h2>
+        <p>
+          GRPO also subtracts a KL regularization penalty so the trained policy does not drift too far from a reference policy:
+        </p>
+        <div class="math-display">
+          \[
+          \mathcal{J}_{\mathrm{GRPO}}(\theta)
+          =
+          \mathbb{E}\left[
+            \frac{1}{G}\sum_{i=1}^{G}
+            \left(
+              \mathcal{J}_{\mathrm{clip}}(\theta)
+              -
+              \beta D_{\mathrm{KL}}(\pi_{\theta}\,\|\,\pi_{\mathrm{ref}})
+            \right)
+          \right]
+          \]
+        </div>
+        <p>
+          The paper uses the following estimator for the KL term:
+        </p>
+        <div class="math-display">
+          \[
+          D_{\mathrm{KL}}(\pi_{\theta}\,\|\,\pi_{\mathrm{ref}})
+          =
+          \frac{\pi_{\mathrm{ref}}(o_i \mid q)}
+               {\pi_{\theta}(o_i \mid q)}
+          -
+          \log
+          \frac{\pi_{\mathrm{ref}}(o_i \mid q)}
+               {\pi_{\theta}(o_i \mid q)}
+          -
+          1
+          \]
+        </div>
+        <p>
+          The deck's intuition is basically right, but the safer wording is this: the KL penalty regularizes policy drift from the reference model and helps preserve the base model's linguistic competence. Calling it only a mode-collapse fix is too loose.
+        </p>
+
+        <h2>Rewards for R1-Zero</h2>
+        <p>
+          R1-Zero uses two rule-based reward types:
+        </p>
+        <ul>
+          <li>Accuracy reward: checks whether the final answer is correct. For math, this can be verified with a boxed or otherwise structured answer. For coding, a compiler and hidden test cases can supply objective feedback.</li>
+          <li>Format reward: enforces that reasoning and final answer are placed in the expected tags, such as <code>&lt;think&gt;</code> and <code>&lt;answer&gt;</code>.</li>
+        </ul>
+        <div class="math-display">
+          \[
+          R_{\mathrm{rule}} =
+          R_{\mathrm{acc}} + R_{\mathrm{format}}
+          \]
+        </div>
+        <p>
+          The important point is that the reward is verifier-based. The paper deliberately avoids neural reward models for the reasoning tasks because neural reward models can be hacked during large-scale RL.
+        </p>
+
+        <h2>Training Template</h2>
+        <p>
+          The R1-Zero template only constrains structure: reason first, answer last. It does not impose a specific reasoning style or content. That is why the observed self-reflection behavior matters. It suggests that the behavior was encouraged by the RL setup rather than hand-coded as a fixed reasoning script.
+        </p>
+
+        <h2>Self-Evolution and the Aha Moment</h2>
+        <p>
+          During RL, R1-Zero's average response length increases. The paper interprets this as the model allocating more thinking time to reasoning tasks. More importantly, the model starts to show reflection-like behaviors, including revisiting an earlier step, checking a possible mistake, and trying another solution path.
+        </p>
+        <p>
+          The "aha moment" is not a separate algorithmic component. It is an observed behavior in an intermediate checkpoint: the model appears to pause and reconsider its own reasoning. The correct interpretation is evidence of emergent reflective behavior under RL, not proof that the model is conscious or that it was explicitly programmed to reflect.
+        </p>
+
+        <h2>DeepSeek-R1 Pipeline</h2>
+        <p>
+          DeepSeek-R1 fixes the practical problems of R1-Zero with a four-stage training pipeline:
+        </p>
+        <ol>
+          <li>Cold start: collect and refine a small amount of long CoT data to make the model readable and human-aligned enough to start RL.</li>
+          <li>Reasoning-oriented RL: apply the same general RL idea as R1-Zero, while adding a language consistency reward.</li>
+          <li>Rejection sampling and SFT: sample multiple answers from the best checkpoint, keep correct and readable reasoning traces, mix them with non-reasoning data, and fine-tune the original base model.</li>
+          <li>RL for all scenarios: use rule-based rewards for reasoning data and model-based rewards for general helpfulness and harmlessness.</li>
+        </ol>
+
+        <h2>Cold Start</h2>
+        <p>
+          Cold start data is used because R1-Zero's raw outputs can be difficult to read. The authors collect long CoT examples, enforce a readable pattern with a final summary, and use human post-processing to clean the data. This is a practical compromise: pure RL demonstrates that reasoning can emerge, but the product-quality model still benefits from a small amount of curated initialization.
+        </p>
+
+        <h2>Language Consistency Reward</h2>
+        <p>
+          R1-Zero can mix languages, especially because the base model is trained heavily on Chinese and English. R1 introduces a language consistency reward:
+        </p>
+        <div class="math-display">
+          \[
+          R_{\mathrm{language}} =
+          \frac{
+            \operatorname{Num}(\mathrm{Words}_{\mathrm{target}})
+          }{
+            \operatorname{Num}(\mathrm{Words})
+          }
+          \]
+        </div>
+        <p>
+          The tradeoff matters: this improves readability and alignment with the target language, but the paper reports a slight performance degradation in ablation results.
+        </p>
+
+        <h2>Rejection Sampling and SFT</h2>
+        <p>
+          After the first RL stage, the best checkpoint generates multiple candidate responses for each prompt. Rejection sampling keeps outputs that are correct and readable. The paper then uses about 600K reasoning samples and 200K non-reasoning samples for SFT.
+        </p>
+        <p>
+          This is one reason the "R1 is just pure RL" summary is incomplete. R1-Zero is the pure-RL demonstration; R1 is a multi-stage system that combines cold-start data, RL, rejection sampling, SFT, and a final RL stage.
+        </p>
+
+        <h2>Final RL Stage</h2>
+        <p>
+          The final RL stage mixes reasoning and non-reasoning prompts:
+        </p>
+        <div class="math-display">
+          \[
+          R =
+          R_{\mathrm{reasoning}}
+          +
+          R_{\mathrm{general}}
+          +
+          R_{\mathrm{language}}
+          \]
+        </div>
+        <p>
+          Reasoning data still uses rule-based rewards. General data uses reward models. Helpfulness is judged from the final summary, while harmlessness is evaluated over the whole response, including the reasoning process, because harmful content can appear during intermediate reasoning.
+        </p>
+
+        <h2>Distillation</h2>
+        <p>
+          DeepSeek-R1 also acts as a teacher for smaller open-source models. The distilled models are fine-tuned on 800K samples generated by DeepSeek-R1. The paper applies SFT only for distillation and does not include an RL stage for those distilled models.
+        </p>
+        <p>
+          The deck's example is correct: DeepSeek-R1-Distill-Qwen-7B reports 55.5 on AIME 2024 pass@1, exceeding QwQ-32B-Preview's 50.0 in the table.
+        </p>
+
+        <h2>Corrected Q&amp;A</h2>
+        <p>
+          Ratio and advantage in GRPO: \(A_i\) says whether an answer is better or worse than the other sampled answers for the same question. The ratio \(\rho_i\) says how much the new policy changes the probability of that same answer relative to the old policy. The clipped objective increases probability for positive-advantage answers and decreases probability for negative-advantage answers, while limiting large policy shifts.
+        </p>
+        <p>
+          DeepSeek-V3, R1-Zero, and R1: DeepSeek-V3-Base is the base model. R1-Zero is trained from that base model with GRPO-style RL and rule-based rewards, without an initial SFT stage for reasoning traces. R1 adds cold-start data, reasoning RL, rejection sampling plus SFT, and a final RL stage for broader helpfulness and harmlessness.
+        </p>
+        <p>
+          KL term: it is not the reward itself. It is a regularizer that subtracts a penalty when the policy drifts too far from the reference policy.
+        </p>
+
+        <h2>Takeaway</h2>
+        <p>
+          The important lesson is that verifier-based RL can elicit reasoning behavior from a strong base model, especially on tasks where correctness is easy to check. GRPO makes large-scale RL more practical by removing the value model and using group-relative rewards. DeepSeek-R1 then turns the raw R1-Zero result into a more usable model through cold start data, language consistency, rejection sampling, SFT, and final preference-oriented RL.
+        </p>
+
+        <p class="source-note">
+          Source: DeepSeek-AI, <a href="https://arxiv.org/abs/2501.12948" rel="noreferrer">DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning</a>.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <p>Study Logging</p>
+      <p>Built for GitHub Pages.</p>
+    </footer>
+
+    <script src="../assets/js/main.js" defer></script>
+  </body>
+</html>
