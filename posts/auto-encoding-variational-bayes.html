@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A study note on Auto-Encoding Variational Bayes and the variational autoencoder objective.">
+    <title>Auto-Encoding Variational Bayes: Variational Autoencoder Notes | Study Logging</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem("theme");
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme = stored || (prefersDark ? "dark" : "light");
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [["\\(", "\\)"]],
+          displayMath: [["\\[", "\\]"]]
+        },
+        svg: {
+          fontCache: "global"
+        }
+      };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <link rel="stylesheet" href="../assets/css/styles.css">
+  </head>
+  <body>
+    <div class="reading-progress" aria-hidden="true"></div>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <nav class="nav" aria-label="Primary navigation">
+        <a class="brand" href="../index.html">
+          <span class="brand-mark" aria-hidden="true">SL</span>
+          <span>Study Logging</span>
+        </a>
+        <div class="nav-actions">
+          <a href="../about.html">About</a>
+          <a href="https://github.com/" rel="noreferrer">GitHub</a>
+          <button class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+            <span class="theme-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" class="page-shell">
+      <article class="prose">
+        <a class="back-link" href="../index.html">&larr; Post list</a>
+        <header class="post-header">
+          <p class="eyebrow">Research notes</p>
+          <h1>Auto-Encoding Variational Bayes: Variational Autoencoder Notes</h1>
+          <div class="post-meta">
+            <time datetime="2026-06-30">2026.06.30</time>
+            <span>13 min</span>
+          </div>
+        </header>
+
+        <p>
+          This note follows the VAE review deck: autoencoder, variational autoencoder, encoder outputs, reparameterization, decoder reconstruction, KL divergence, ELBO, and a compact implementation sketch. The core intuition is kept, but the mathematically fatal sign and notation errors are corrected.
+        </p>
+
+        <p class="source-evidence">
+          Paper anchor: <q>probabilistic encoder</q>, <q>probabilistic decoder</q>, <q>regularizer</q>, <q>element-wise product</q>.
+        </p>
+
+        <h2>Autoencoder Baseline</h2>
+        <p>
+          A standard autoencoder compresses an input \(x\) into a latent representation and reconstructs it as \(\hat{x}\). The encoder learns a deterministic code, and the decoder learns to reconstruct the original input from that code.
+        </p>
+        <div class="math-display">
+          \[
+          h = f_{\mathrm{enc}}(x), \qquad \hat{x} = f_{\mathrm{dec}}(h)
+          \]
+        </div>
+        <p>
+          The training signal is usually reconstruction error. For a simple continuous vector example:
+        </p>
+        <div class="math-display">
+          \[
+          \mathcal{L}_{\mathrm{recon}} =
+          \sum_{j=1}^{d}(x_j-\hat{x}_j)^2
+          \]
+        </div>
+
+        <h2>What Changes in a VAE?</h2>
+        <p>
+          A variational autoencoder does not encode an input into one fixed latent vector. It encodes the input into a distribution over possible latent vectors. In the common diagonal Gaussian setup, the encoder predicts a mean vector and a log-variance vector:
+        </p>
+        <div class="math-display">
+          \[
+          q_{\phi}(z \mid x) =
+          \mathcal{N}\left(z;\mu_{\phi}(x), \operatorname{diag}(\sigma_{\phi}^{2}(x))\right)
+          \]
+        </div>
+        <p>
+          This is the first important correction to the deck: the encoder should be described as outputting \(\mu\) and \(\log\sigma^2\). It should not say \(\log\mu^2\). The standard deviation \(\sigma\) is derived later from the log variance.
+        </p>
+
+        <h2>Encoder Output</h2>
+        <p>
+          If the hidden representation is \(h\), the VAE encoder usually has two linear heads:
+        </p>
+        <div class="math-display">
+          \[
+          h = W_{\mathrm{enc}}x + b_{\mathrm{enc}}
+          \]
+        </div>
+        <div class="math-display">
+          \[
+          \mu = W_{\mu}h + b_{\mu}, \qquad
+          \ell = W_{\log\sigma^2}h + b_{\log\sigma^2}
+          \]
+        </div>
+        <p>
+          Here \(\ell = \log\sigma^2\). The slide label "sigma vector" is acceptable only as a shorthand after conversion. Technically, the encoder head should be the log-variance head, because this is the numerically stable parameter that the network predicts.
+        </p>
+
+        <h2>Why Log Variance?</h2>
+        <p>
+          Predicting variance directly can create invalid negative values. Predicting log variance avoids that problem because exponentiation maps any real number to a positive variance.
+        </p>
+        <div class="math-display">
+          \[
+          \sigma^2 = \exp(\ell), \qquad
+          \sigma = \sqrt{\exp(\ell)} = \exp(0.5\ell)
+          \]
+        </div>
+        <p>
+          The wording should be "exponentiate log variance", not "multiply log variance by an exponential function".
+        </p>
+
+        <h2>Reparameterization Trick</h2>
+        <p>
+          Sampling \(z\) directly from \(q_{\phi}(z \mid x)\) would place the random sampling operation in the gradient path. The reparameterization trick separates the noise from the learned parameters:
+        </p>
+        <div class="math-display">
+          \[
+          \epsilon \sim \mathcal{N}(0,I), \qquad
+          z = \mu + \sigma \odot \epsilon
+          \]
+        </div>
+        <p>
+          The \(\odot\) matters: this is elementwise multiplication. In code terms, sample standard normal noise with the same shape as the standard deviation, then shift and scale it by \(\mu\) and \(\sigma\).
+        </p>
+        <pre><code>std = torch.exp(0.5 * logvar)
+eps = torch.randn_like(std)
+z = mu + std * eps</code></pre>
+
+        <h2>Decoder and Reconstruction</h2>
+        <p>
+          After sampling \(z\), the decoder maps it back toward the data space:
+        </p>
+        <div class="math-display">
+          \[
+          \hat{x} = f_{\theta}(z)
+          \]
+        </div>
+        <p>
+          The exact reconstruction term depends on the output distribution. For real-valued data, an MSE-like Gaussian reconstruction loss is common. For binary image data, a Bernoulli decoder usually corresponds to binary cross entropy.
+        </p>
+
+        <h2>ELBO</h2>
+        <p>
+          The VAE objective is usually written as an evidence lower bound. Using the common notation where the encoder is \(q_{\phi}(z \mid x)\) and the decoder or generative model is \(p_{\theta}(x \mid z)\):
+        </p>
+        <div class="math-display">
+          \[
+          \log p_{\theta}(x) \ge
+          \mathcal{L}(\theta,\phi;x)
+          =
+          \mathbb{E}_{q_{\phi}(z\mid x)}
+          [\log p_{\theta}(x \mid z)]
+          -
+          D_{\mathrm{KL}}\left(q_{\phi}(z \mid x)\,\|\,p(z)\right)
+          \]
+        </div>
+        <p>
+          This is the second important correction: the encoder is \(q_{\phi}\), and the decoder or generative model is \(p_{\theta}\). The deck's appendix flips these symbols in places.
+        </p>
+
+        <h2>Training Loss</h2>
+        <p>
+          Training often minimizes the negative ELBO. That converts the objective into reconstruction loss plus a positive KL regularizer:
+        </p>
+        <div class="math-display">
+          \[
+          \mathcal{J}(\theta,\phi;x)
+          =
+          -\mathbb{E}_{q_{\phi}(z\mid x)}
+          [\log p_{\theta}(x \mid z)]
+          +
+          D_{\mathrm{KL}}\left(q_{\phi}(z \mid x)\,\|\,p(z)\right)
+          \]
+        </div>
+        <p>
+          For a diagonal Gaussian approximate posterior and a standard normal prior \(p(z)=\mathcal{N}(0,I)\), the KL term used in the loss is:
+        </p>
+        <div class="math-display">
+          \[
+          D_{\mathrm{KL}}
+          =
+          \frac{1}{2}\sum_{j=1}^{J}
+          \left(\mu_j^2 + \sigma_j^2 - \log\sigma_j^2 - 1\right)
+          \]
+        </div>
+        <p>
+          Equivalently, if \(\ell_j = \log\sigma_j^2\):
+        </p>
+        <div class="math-display">
+          \[
+          D_{\mathrm{KL}}
+          =
+          -\frac{1}{2}\sum_{j=1}^{J}
+          \left(1+\ell_j-\mu_j^2-\exp(\ell_j)\right)
+          \]
+        </div>
+
+        <h2>Critical Sign Correction</h2>
+        <p>
+          The deck writes this value as:
+        </p>
+        <div class="math-display">
+          \[
+          \frac{1}{2}\sum_j
+          \left(1+\log\sigma_j^2-\mu_j^2-\sigma_j^2\right)
+          =
+          -0.56882
+          \]
+        </div>
+        <p>
+          That expression is the \(-D_{\mathrm{KL}}\) term inside the ELBO. It is not the positive KL penalty used in the minimized loss. Therefore, the final loss should add \(+0.56882\), not \(-0.56882\).
+        </p>
+        <div class="math-display">
+          \[
+          \mathcal{J}
+          =
+          7.298611 + 0.56882
+          =
+          7.867431
+          \]
+        </div>
+        <p>
+          So the slide's conclusion \(6.729791\) is a sign error if the section is describing final training loss.
+        </p>
+
+        <h2>Implementation Sketch</h2>
+        <p>
+          The core implementation is short. The key is that the model predicts \(\mu\) and \(\log\sigma^2\), samples \(z\) through reparameterization, and adds a positive KL term to the reconstruction loss.
+        </p>
+        <pre><code>def reparameterize(mu, logvar):
+    std = torch.exp(0.5 * logvar)
+    eps = torch.randn_like(std)
+    return mu + std * eps
+
+def vae_loss(x, x_hat, mu, logvar):
+    recon = torch.nn.functional.mse_loss(x_hat, x, reduction="sum")
+    kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    return recon + kl</code></pre>
+
+        <h2>Takeaway</h2>
+        <p>
+          The deck's intuitive story is mostly usable: AE learns a compressed code, VAE learns a distribution around a code, reparameterization makes stochastic sampling trainable, and the objective balances reconstruction quality against a latent-space regularizer. The fatal corrections are the encoder output notation, the log-variance conversion wording, the \(q_{\phi}\) and \(p_{\theta}\) roles, and the KL sign in the final loss.
+        </p>
+
+        <p class="source-note">
+          Source: Kingma and Welling, <a href="https://arxiv.org/abs/1312.6114" rel="noreferrer">Auto-Encoding Variational Bayes</a>.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <p>Study Logging</p>
+      <p>Built for GitHub Pages.</p>
+    </footer>
+
+    <script src="../assets/js/main.js" defer></script>
+  </body>
+</html>
