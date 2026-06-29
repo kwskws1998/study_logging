@@ -453,6 +453,27 @@ h3 {
   white-space: pre;
 }
 
+.slide-figure {
+  width: min(1040px, calc(100vw - 48px));
+  margin: 24px 50% 28px;
+  transform: translateX(-50%);
+}
+
+.slide-figure img {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.slide-figure figcaption {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.94rem;
+  overflow-wrap: anywhere;
+}
+
 .prose q {
   color: var(--text);
   font-weight: 650;

@@ -91,6 +91,10 @@
         <p>
           The usual intuition from word2vec-style embeddings is that the model learns from context. If taxi and airplane often appear in similar contexts, such as "heading to Pusan", their vectors are updated toward similar regions. A classic analogy can be written as:
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/word2vec-context-example.png" alt="Word2vec context example showing woman, man, queen, and king vector relation plus taxi and airplane context sentences" loading="lazy">
+          <figcaption>Original slide figure: context-based word vectors and the taxi/airplane example.</figcaption>
+        </figure>
         <div class="math-display">
           \[
           \vec{v}_{\mathrm{woman}} - \vec{v}_{\mathrm{man}}
@@ -103,6 +107,10 @@
         <p>
           In the Transformer, a token starts as a one-hot vector over the vocabulary and is projected into a dense embedding vector. If the vocabulary size is \(V\) and the embedding dimension is \(d_{\mathrm{model}}\), the embedding lookup can be written as:
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/embedding-numeric-example.png" alt="Numeric embedding lookup example converting a one-hot dog vector through an embedding matrix into a dense vector" loading="lazy">
+          <figcaption>Original slide figure: the dog one-hot vector selects the row [0.2, 0.7, 0.3, 0.9, 0.1, 0.2] from the embedding matrix.</figcaption>
+        </figure>
         <div class="math-display">
           \[
           x_{\mathrm{onehot}} \in \mathbb{R}^{1 \times V}, \qquad
@@ -121,11 +129,18 @@
         <p>
           In the base Transformer, \(d_{\mathrm{model}} = 512\). For a vocabulary around 37,000 tokens, this gives the practical intuition of replacing a very high-dimensional sparse vector with a 512-dimensional dense vector.
         </p>
+        <p>
+          In the slide's toy example, \(V=6\) and \(d=6\). The one-hot vector for "dog" is \([0,0,0,1,0,0]\), and the lookup returns \([0.2,0.7,0.3,0.9,0.1,0.2]\).
+        </p>
 
         <h2>Why Positional Encoding Is Needed</h2>
         <p>
           RNNs process input sequences step by step. A hidden state \(h_t\) depends on \(h_{t-1}\), so position is naturally entangled with the recurrence:
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/rnn-positional-encoding-comparison.png" alt="RNN positional comparison slide explaining why recurrent hidden states carry sequence order while Transformers process tokens in parallel" loading="lazy">
+          <figcaption>Original slide figure: RNN hidden states carry implicit position through recurrence; Transformer inputs need explicit positional encoding.</figcaption>
+        </figure>
         <div class="math-display">
           \[
           h_t = f_W(h_{t-1}, x_t)
@@ -139,6 +154,10 @@
         <p>
           The sinusoidal positional encoding uses sine for even dimensions and cosine for odd dimensions. Here, \(pos\) is the token position, \(i\) is the dimension-pair index, and \(d_{\mathrm{model}}\) is the embedding dimension.
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/positional-encoding-index-example.png" alt="Positional encoding index example for dog at position 2 with sine and cosine values across six dimensions" loading="lazy">
+          <figcaption>Original slide figure: for "dog" at position 2, the six positional values are approximately [0.9093, -0.4161, 0.0927, 0.9957, 0.0043, 0.99999].</figcaption>
+        </figure>
         <div class="math-display">
           \[
           PE_{(pos,2i)} = \sin\left(\frac{pos}{10000^{2i/d_{\mathrm{model}}}}\right)
@@ -155,6 +174,10 @@
         <p>
           For a token such as "dog" at index 2, the positional vector is added directly to the embedding vector:
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/positional-encoding-addition-example.png" alt="Numeric example adding positional encoding values to the dog embedding vector" loading="lazy">
+          <figcaption>Original slide figure: adding embedding [0.2, 0.7, 0.3, 0.9, 0.1, 0.2] and positional encoding produces [1.1093, 0.2839, 0.3927, 1.8957, 0.1043, 1.19999].</figcaption>
+        </figure>
         <div class="math-display">
           \[
           x_{\mathrm{input}} = x_{\mathrm{embed}} + PE_{pos}
@@ -165,6 +188,10 @@
         <p>
           In sequence-to-sequence attention, the decoder state can serve as a query \(Q\). Encoder hidden states serve as keys \(K\) and values \(V\). The dot product \(QK^\top\) scores how related the decoder state is to each encoder state.
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/seq2seq-attention-flow.png" alt="Seq2Seq attention diagram showing query from decoder, encoder hidden states as keys and values, softmax layer, and context vector" loading="lazy">
+          <figcaption>Original slide figure: decoder output as query, encoder states as keys and values, softmax weights, and context vector construction.</figcaption>
+        </figure>
         <div class="math-display">
           \[
           \mathrm{Attention}(Q,K,V) = \mathrm{softmax}(QK^\top)V
@@ -183,14 +210,26 @@
         <p>
           Transformer attention includes self-attention inside the encoder and decoder. In self-attention, the same sequence supplies the inputs used to produce \(Q\), \(K\), and \(V\). Encoder self-attention relates encoder tokens to other encoder tokens; decoder self-attention relates generated-side tokens to previous generated-side tokens.
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/self-attention-overview.png" alt="Transformer architecture overview highlighting encoder and decoder self-attention and encoder-decoder attention" loading="lazy">
+          <figcaption>Original slide figure: self-attention occurs inside the encoder and decoder; encoder-decoder attention still appears later.</figcaption>
+        </figure>
         <p>
           The encoder-decoder attention still exists: decoder outputs become queries, and encoder outputs become keys and values. That is the cross-attention block.
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/self-attention-action.png" alt="Self-attention action diagram showing Q K V generated from the same encoder or decoder inputs" loading="lazy">
+          <figcaption>Original slide figure: in self-attention, \(Q\), \(K\), and \(V\) are projected from the same side's inputs.</figcaption>
+        </figure>
 
         <h2>Scaled Dot-Product Attention</h2>
         <p>
           Transformer self-attention uses scaled dot-product attention:
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/scaled-dot-product-variance.png" alt="Scaled dot-product attention slide showing why dk equals 64 gives standard deviation 8 for dot product scores" loading="lazy">
+          <figcaption>Original slide figure: when \(d_k=64\), dot-product scores can have standard deviation \(8\), making raw scores too large.</figcaption>
+        </figure>
         <div class="math-display">
           \[
           \mathrm{Attention}(Q,K,V) =
@@ -208,11 +247,19 @@
         <p>
           With \(d_k = 64\), the standard deviation is \(8\). Dot-product scores can become large, softmax can saturate near 0 or 1, and gradients can become small. Scaling keeps the scores in a more workable range.
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/scaled-dot-product-softmax.png" alt="Softmax saturation example showing z1 equals 9 and z2 equals 1 leading to attention weights near 0.9997 and 0.0003" loading="lazy">
+          <figcaption>Original slide figure: \(z_1=9\), \(z_2=1\) gives \(e^9=8103\), \(e^1=2.7\), and attention weights close to [0.9997, 0.0003].</figcaption>
+        </figure>
 
         <h2>Multi-Head Attention</h2>
         <p>
           Multi-head attention is like having several attention filters. Each head has its own learned projections, so different heads can extract different relational patterns.
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/multi-head-attention-flow.png" alt="Multi-head attention flow diagram with scaled dot-product attention, concatenation, and linear output projection" loading="lazy">
+          <figcaption>Original slide figure: \(V\), \(K\), and \(Q\) projections feed parallel heads; head outputs are concatenated and linearly projected.</figcaption>
+        </figure>
         <div class="math-display">
           \[
           \mathrm{head}_i =
@@ -233,6 +280,10 @@
         <p>
           The decoder must generate output tokens one at a time. Future tokens should not affect the current token's prediction. Masking solves this by adding \(-\infty\) to illegal future attention scores before softmax:
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/decoder-masking-example.png" alt="Decoder masking example showing future tokens masked before softmax in Transformer decoder self-attention" loading="lazy">
+          <figcaption>Original slide figure: future-position scores receive \(-\infty\), so their softmax probabilities become \(0\).</figcaption>
+        </figure>
         <div class="math-display">
           \[
           \mathrm{softmax}(QK^\top + M)
@@ -246,6 +297,10 @@
         <p>
           Cross-attention works like the attention used in seq2seq. The decoder's self-attention output supplies the query. The encoder output supplies keys and values:
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/cross-attention-flow.png" alt="Cross-attention diagram showing decoder self-attention output as query and encoder output as key and value" loading="lazy">
+          <figcaption>Original slide figure: decoder-side output becomes \(Q\), while encoder output supplies \(K\) and \(V\).</figcaption>
+        </figure>
         <div class="math-display">
           \[
           Q = H_{\mathrm{decoder}}, \qquad
@@ -258,6 +313,10 @@
         <p>
           After a sublayer such as multi-head attention, the Transformer adds the original input back to the sublayer output. This skip connection helps preserve original information and improves gradient flow.
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/residual-addition-numeric-example.png" alt="Residual addition numeric example adding multi-head attention output to embedding plus positional encoding" loading="lazy">
+          <figcaption>Original slide figure: embedding plus positional encoding [1.1093, ...] is added to attention output [0.1, 0.43, ...], giving [1.2093, 0.7139, 0.9527, 1.9057, 0.4043, 1.86999].</figcaption>
+        </figure>
         <div class="math-display">
           \[
           x_{\mathrm{residual}} = x + \mathrm{Sublayer}(x)
@@ -284,6 +343,10 @@
         <p>
           In the Transformer block, residual addition and layer normalization are tied together:
         </p>
+        <figure class="slide-figure">
+          <img src="../assets/images/posts/transformer/layer-normalization-example.png" alt="Layer normalization slide showing residual output values and per-layer mean and standard deviation computation" loading="lazy">
+          <figcaption>Original slide figure: layer normalization computes mean and standard deviation across the token representation after residual addition.</figcaption>
+        </figure>
         <div class="math-display">
           \[
           \mathrm{LayerNorm}(x + \mathrm{Sublayer}(x))
