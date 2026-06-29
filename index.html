@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A personal GitHub Pages blog for research, engineering, and experiment notes.">
+    <title>Wansoo Kim Notes</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem("theme");
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme = stored || (prefersDark ? "dark" : "light");
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="assets/css/styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header" data-compact>
+      <nav class="nav" aria-label="Primary navigation">
+        <a class="brand" href="index.html">
+          <span class="brand-mark" aria-hidden="true">WK</span>
+          <span>Wansoo Kim Notes</span>
+        </a>
+        <div class="nav-actions">
+          <a href="about.html">About</a>
+          <a href="https://github.com/" rel="noreferrer">GitHub</a>
+          <button class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+            <span class="theme-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="home-hero" aria-labelledby="home-title">
+        <img class="hero-image" src="assets/images/blog-banner.png" alt="Desk with a laptop, research notes, and papers">
+        <div class="hero-content">
+          <p class="eyebrow">Research engineering log</p>
+          <h1 id="home-title">A durable home for experiments, code, and reading notes</h1>
+          <p class="hero-summary">
+            I use this space to organize research ideas, implementation notes, and experiment results. Even short posts should preserve evidence, assumptions, and the next concrete step.
+          </p>
+        </div>
+      </section>
+
+      <section class="toolbar" aria-label="Post search and filters">
+        <label class="search-field">
+          <span>Search</span>
+          <input id="post-search" type="search" placeholder="Search title, tags, or summary" autocomplete="off">
+        </label>
+        <div class="filter-group" aria-label="Tag filters">
+          <button class="filter-chip is-active" type="button" data-filter="all">All</button>
+          <button class="filter-chip" type="button" data-filter="research">Research</button>
+          <button class="filter-chip" type="button" data-filter="code">Code</button>
+          <button class="filter-chip" type="button" data-filter="notes">Notes</button>
+        </div>
+      </section>
+
+      <section class="content-shell" aria-labelledby="recent-title">
+        <div class="section-heading">
+          <p class="eyebrow">Latest posts</p>
+          <h2 id="recent-title">Recent posts</h2>
+        </div>
+
+        <div class="post-grid" id="post-list">
+          <article class="post-card featured" data-post data-tags="notes code" data-title="First post principles for this blog">
+            <div class="post-meta">
+              <time datetime="2026-06-29">2026.06.29</time>
+              <span>3 min</span>
+            </div>
+            <h3><a href="posts/blog-start.html">First post: principles for this blog</a></h3>
+            <p>
+              A short note on what belongs here: experiment conditions, evidence, decisions, and the next action that should not be left to memory.
+            </p>
+            <div class="tag-row">
+              <span>Notes</span>
+              <span>Code</span>
+            </div>
+          </article>
+
+          <article class="post-card" data-post data-tags="research code" data-title="How I keep experiment logs">
+            <div class="post-meta">
+              <time datetime="2026-06-29">2026.06.29</time>
+              <span>4 min</span>
+            </div>
+            <h3><a href="posts/research-log-template.html">How I keep experiment logs</a></h3>
+            <p>
+              A compact format for keeping commands, data versions, failed conditions, and observed differences in the same reproducible record.
+            </p>
+            <div class="tag-row">
+              <span>Research</span>
+              <span>Code</span>
+            </div>
+          </article>
+
+          <article class="post-card" data-post data-tags="research notes" data-title="A paper reading note format">
+            <div class="post-meta">
+              <time datetime="2026-06-29">2026.06.29</time>
+              <span>5 min</span>
+            </div>
+            <h3><a href="posts/paper-reading-note-template.html">A paper reading note format</a></h3>
+            <p>
+              A note structure that separates claims, quoted evidence, interpretation, and follow-up actions for research reading.
+            </p>
+            <div class="tag-row">
+              <span>Research</span>
+              <span>Notes</span>
+            </div>
+          </article>
+        </div>
+
+        <p class="empty-state" id="empty-state" hidden>No posts match the current filters.</p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Wansoo Kim Notes</p>
+      <p>Built for GitHub Pages.</p>
+    </footer>
+
+    <script src="assets/js/main.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="About Wansoo Kim Notes.">
+    <title>About | Wansoo Kim Notes</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem("theme");
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme = stored || (prefersDark ? "dark" : "light");
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="assets/css/styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <nav class="nav" aria-label="Primary navigation">
+        <a class="brand" href="index.html">
+          <span class="brand-mark" aria-hidden="true">WK</span>
+          <span>Wansoo Kim Notes</span>
+        </a>
+        <div class="nav-actions">
+          <a href="about.html" aria-current="page">About</a>
+          <a href="https://github.com/" rel="noreferrer">GitHub</a>
+          <button class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+            <span class="theme-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" class="page-shell">
+      <article class="prose">
+        <p class="eyebrow">About</p>
+        <h1>Notes that connect research and engineering</h1>
+        <p>
+          This is a personal blog for research ideas, modeling experiments, implementation notes, and reading records. The goal is not only to keep conclusions, but also to preserve the conditions, evidence, and reasoning behind each decision.
+        </p>
+        <h2>Writing standards</h2>
+        <ul>
+          <li>Experiment posts keep data, commands, settings, and observations together.</li>
+          <li>Code posts separate implementation intent from verification.</li>
+          <li>Paper posts distinguish claims, direct evidence, and interpretation.</li>
+        </ul>
+        <h2>Interests</h2>
+        <p>
+          I am interested in eye tracking, emotion analysis, multimodal modeling, reproducible experiments, and research software design.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <p>Wansoo Kim Notes</p>
+      <p>Built for GitHub Pages.</p>
+    </footer>
+
+    <script src="assets/js/main.js" defer></script>
+  </body>
+</html>

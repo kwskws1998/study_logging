@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A paper reading note format that separates claims, source evidence, and interpretation.">
+    <title>A paper reading note format | Wansoo Kim Notes</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem("theme");
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme = stored || (prefersDark ? "dark" : "light");
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="../assets/css/styles.css">
+  </head>
+  <body>
+    <div class="reading-progress" aria-hidden="true"></div>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <nav class="nav" aria-label="Primary navigation">
+        <a class="brand" href="../index.html">
+          <span class="brand-mark" aria-hidden="true">WK</span>
+          <span>Wansoo Kim Notes</span>
+        </a>
+        <div class="nav-actions">
+          <a href="../about.html">About</a>
+          <a href="https://github.com/" rel="noreferrer">GitHub</a>
+          <button class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+            <span class="theme-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" class="page-shell">
+      <article class="prose">
+        <a class="back-link" href="../index.html">&larr; Post list</a>
+        <header class="post-header">
+          <p class="eyebrow">Research notes</p>
+          <h1>A paper reading note format</h1>
+          <div class="post-meta">
+            <time datetime="2026-06-29">2026.06.29</time>
+            <span>5 min</span>
+          </div>
+        </header>
+
+        <p>
+          A paper note that keeps only a summary can lose the source evidence later. I separate each claim, direct quotation, interpretation, and connection to my own work.
+        </p>
+
+        <h2>Basic unit</h2>
+        <ul>
+          <li>Claim: what the authors argue.</li>
+          <li>Evidence: a sentence copied directly from the paper.</li>
+          <li>Interpretation: what I think it means and where its limits are.</li>
+          <li>Action: what should change in my experiment or writing.</li>
+        </ul>
+
+        <h2>Put the excerpt first</h2>
+        <p>
+          For important points, paste the source sentence first and write the interpretation underneath it. This keeps evidence and inference separate when the paper is discussed later.
+        </p>
+
+        <h2>Metadata to keep</h2>
+        <p>
+          Keep the paper title, authors, publication year, venue, URL, and reading date together. When citing experimental results, also record the table or section number.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <p>Wansoo Kim Notes</p>
+      <p>Built for GitHub Pages.</p>
+    </footer>
+
+    <script src="../assets/js/main.js" defer></script>
+  </body>
+</html>

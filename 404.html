@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Page not found.">
+    <title>Page not found | Wansoo Kim Notes</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem("theme");
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme = stored || (prefersDark ? "dark" : "light");
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="assets/css/styles.css">
+  </head>
+  <body>
+    <main class="page-shell centered-page">
+      <article class="prose">
+        <p class="eyebrow">404</p>
+        <h1>Page not found</h1>
+        <p>The address may have changed, or the post may not exist yet.</p>
+        <p><a class="text-link" href="index.html">Return to the post list</a></p>
+      </article>
+    </main>
+    <script src="assets/js/main.js" defer></script>
+  </body>
+</html>
