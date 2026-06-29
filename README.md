@@ -1,4 +1,4 @@
-# Wansoo Kim Notes
+# Study Logging
 
 A static personal blog that can be hosted directly on GitHub Pages. There is no build step, so `index.html` can be opened locally in a browser.
 
@@ -34,7 +34,7 @@ Official documentation:
 
 ## Customize
 
-- Replace `Wansoo Kim Notes` with your preferred blog name.
+- Replace `Study Logging` with your preferred blog name.
 - Replace the `WK` brand mark.
 - Replace `https://github.com/` with your GitHub profile URL.
 - Update the introduction in `about.html`.
