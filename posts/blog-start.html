@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="A first note on the operating principles for this personal GitHub Pages blog.">
-    <title>First post: principles for this blog | Study Logging</title>
+    <meta name="description" content="A reading note on Proximal Policy Optimization and the clipped surrogate objective.">
+    <title>PPO: clipped surrogate objective reading note | Study Logging</title>
     <script>
       (() => {
         try {
@@ -42,35 +42,87 @@
       <article class="prose">
         <a class="back-link" href="../index.html">&larr; Post list</a>
         <header class="post-header">
-          <p class="eyebrow">Notes</p>
-          <h1>First post: principles for this blog</h1>
+          <p class="eyebrow">Research notes</p>
+          <h1>PPO: clipped surrogate objective reading note</h1>
           <div class="post-meta">
             <time datetime="2026-06-29">2026.06.29</time>
-            <span>3 min</span>
+            <span>8 min</span>
           </div>
         </header>
 
         <p>
-          I want this blog to work less like a gallery of finished outcomes and more like a record of how decisions were made. A post can be short, but it should leave enough context to reproduce the same conditions later.
+          Proximal Policy Optimization is a policy-gradient method designed to reuse sampled trajectory data without letting the policy move too far in one update. The core idea is to optimize a surrogate objective while limiting the useful incentive from large probability-ratio changes.
         </p>
 
-        <h2>What to keep</h2>
+        <h2>Paper anchor</h2>
         <p>
-          Experiment and implementation posts should keep the data, key settings, command line, observed differences, and next checks in one place. Even a failed condition is useful evidence for the next decision.
+          The paper frames PPO around <q>clipped probability ratios</q>, <q>multiple epochs of minibatch updates</q>, and stochastic gradient ascent. The clipped objective is described as a <q>lower bound</q> on the unclipped surrogate objective.
         </p>
 
-        <h2>What to avoid</h2>
+        <h2>Policy gradient starting point</h2>
         <p>
-          I will avoid conclusions that are not tied to evidence. For papers in particular, summaries and interpretations should stay separate, and important claims should be kept with direct source text.
+          The policy-gradient estimator increases the log probability of actions with positive estimated advantage and decreases it for actions with negative estimated advantage. In implementation, many libraries minimize losses, so the maximization objective is commonly negated before backpropagation.
         </p>
+        <pre><code>g_hat = E_t[grad_theta log pi_theta(a_t | s_t) * A_hat_t]</code></pre>
 
-        <h2>Default shape</h2>
+        <h2>Probability ratio</h2>
+        <p>
+          PPO compares the new policy with the behavior policy that generated the data using a likelihood ratio. This ratio is not a direct statement that the new policy is better or worse overall. It only says whether the same sampled action is now more or less likely under the current policy.
+        </p>
+        <pre><code>r_t(theta) = pi_theta(a_t | s_t) / pi_theta_old(a_t | s_t)</code></pre>
         <ul>
-          <li>Problem: why this was checked.</li>
-          <li>Conditions: which environment and data were used.</li>
-          <li>Result: what changed.</li>
-          <li>Decision: what should happen next.</li>
+          <li><code>r_t = 1</code>: the sampled action has the same probability under both policies.</li>
+          <li><code>r_t &gt; 1</code>: the sampled action is more likely under the current policy.</li>
+          <li><code>0 &lt; r_t &lt; 1</code>: the sampled action is less likely under the current policy.</li>
         </ul>
+
+        <h2>Clipped surrogate objective</h2>
+        <p>
+          The unclipped term, <code>r_t(theta) * A_hat_t</code>, can keep improving as the policy ratio moves away from 1. PPO clips the ratio to the interval <code>[1 - epsilon, 1 + epsilon]</code> and then takes the minimum of the unclipped and clipped terms.
+        </p>
+        <pre><code>L_clip(theta) = E_t[min(
+  r_t(theta) * A_hat_t,
+  clip(r_t(theta), 1 - epsilon, 1 + epsilon) * A_hat_t
+)]</code></pre>
+        <p>
+          The minimum operator is the important part. For positive advantages, it prevents the objective from rewarding a very large increase in the sampled action probability. For negative advantages, it prevents the objective from rewarding an overly large decrease. The clipped interval is a constraint on the probability ratio, not on reward itself.
+        </p>
+
+        <h2>Advantage estimation</h2>
+        <p>
+          PPO is commonly implemented in an actor-critic style. The actor is the policy; the critic estimates the value of a state. The advantage estimate should be read as a relative signal: how much better the sampled action looked than the critic's baseline expectation, not simply actual reward minus predicted reward.
+        </p>
+        <pre><code>delta_t = r_t + gamma * V(s_{t+1}) - V(s_t)
+A_hat_t = delta_t + (gamma * lambda) delta_{t+1} + ...</code></pre>
+        <p>
+          The paper discusses truncated generalized advantage estimation for fixed-length trajectory segments. In the reported benchmark settings, <code>lambda = 0.95</code> is used as a hyperparameter, but that should be treated as a strong default from the paper's experiments rather than a universal best value.
+        </p>
+
+        <h2>Full objective</h2>
+        <p>
+          With a shared actor-critic architecture, the optimized objective combines the clipped policy surrogate, a value-function error term, and an <q>entropy bonus</q> for exploration.
+        </p>
+        <pre><code>L(theta) = E_t[L_clip_t(theta) - c1 * L_vf_t(theta) + c2 * S[pi_theta](s_t)]</code></pre>
+
+        <h2>Algorithm loop</h2>
+        <p>
+          A typical PPO iteration collects fixed-length trajectory segments from multiple actors, computes advantage estimates, and optimizes the surrogate objective for several epochs using minibatches. After that, the updated policy becomes the old policy for the next sampling round.
+        </p>
+        <ol>
+          <li>Run <code>pi_theta_old</code> for <code>T</code> timesteps across <code>N</code> actors.</li>
+          <li>Compute advantage estimates from the collected data.</li>
+          <li>Optimize the surrogate objective for <code>K</code> epochs.</li>
+          <li>Set <code>theta_old &lt;- theta</code> and collect new data.</li>
+        </ol>
+
+        <h2>Takeaway</h2>
+        <p>
+          PPO is not just vanilla policy gradient with a smaller learning rate. It is a policy-gradient method that allows repeated optimization over sampled data while clipping the probability ratio so that the objective stops giving useful incentive to policy updates that move too far from the data-generating policy.
+        </p>
+
+        <p class="source-note">
+          Source: Schulman et al., <a href="https://arxiv.org/abs/1707.06347" rel="noreferrer">Proximal Policy Optimization Algorithms</a>.
+        </p>
       </article>
     </main>
 

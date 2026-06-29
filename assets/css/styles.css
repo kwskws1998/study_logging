@@ -434,6 +434,22 @@ h3 {
   padding-left: 22px;
 }
 
+.prose ol {
+  padding-left: 22px;
+}
+
+.prose q {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.source-note {
+  margin-top: 42px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font-size: 0.96rem;
+}
+
 .post-header {
   margin: 14px 0 32px;
   padding-bottom: 22px;
