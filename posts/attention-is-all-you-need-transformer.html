@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A study note on Attention Is All You Need and the Transformer model architecture.">
+    <title>Attention Is All You Need: Transformer Model Architecture | Study Logging</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem("theme");
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme = stored || (prefersDark ? "dark" : "light");
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [["\\(", "\\)"]],
+          displayMath: [["\\[", "\\]"]]
+        },
+        svg: {
+          fontCache: "global"
+        }
+      };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <link rel="stylesheet" href="../assets/css/styles.css">
+  </head>
+  <body>
+    <div class="reading-progress" aria-hidden="true"></div>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <nav class="nav" aria-label="Primary navigation">
+        <a class="brand" href="../index.html">
+          <span class="brand-mark" aria-hidden="true">SL</span>
+          <span>Study Logging</span>
+        </a>
+        <div class="nav-actions">
+          <a href="../about.html">About</a>
+          <a href="https://github.com/" rel="noreferrer">GitHub</a>
+          <button class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+            <span class="theme-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" class="page-shell">
+      <article class="prose">
+        <a class="back-link" href="../index.html">&larr; Post list</a>
+        <header class="post-header">
+          <p class="eyebrow">Research notes</p>
+          <h1>Attention Is All You Need: Transformer Model Architecture</h1>
+          <div class="post-meta">
+            <time datetime="2026-06-30">2026.06.30</time>
+            <span>14 min</span>
+          </div>
+        </header>
+
+        <p>
+          This note follows the Transformer model architecture review. The flow is: word representation, positional encoding, attention, multi-head attention, masking, cross-attention, residual addition, and layer normalization.
+        </p>
+
+        <p class="source-evidence">
+          Paper anchor: <q>dispensing with recurrence and convolutions</q>, <q>positional encodings</q>, <q>Scaled Dot-Product Attention</q>, <q>residual connection</q>, <q>layer normalization</q>.
+        </p>
+
+        <h2>One-Hot Encoding</h2>
+        <p>
+          A one-hot vector represents a word with one active index and zeros everywhere else. For example, two words can be represented as separate basis vectors:
+        </p>
+        <div class="math-display">
+          \[
+          \mathrm{dog} = [0,0,0,1], \qquad
+          \mathrm{puppy} = [0,0,1,0]
+          \]
+        </div>
+        <p>
+          The problem is that the inner product between different one-hot vectors is always zero. That means dog and puppy look as unrelated as dog and pencil, even though dog and puppy are semantically closer. This motivates word embeddings.
+        </p>
+
+        <h2>Word Embedding</h2>
+        <p>
+          A word embedding expresses a word as a dense vector. Instead of using a single active index, the meaning of a word is distributed across multiple scalar dimensions. Similar words should end up with similar vectors and shorter distances.
+        </p>
+        <p>
+          The usual intuition from word2vec-style embeddings is that the model learns from context. If taxi and airplane often appear in similar contexts, such as "heading to Pusan", their vectors are updated toward similar regions. A classic analogy can be written as:
+        </p>
+        <div class="math-display">
+          \[
+          \vec{v}_{\mathrm{woman}} - \vec{v}_{\mathrm{man}}
+          \approx
+          \vec{v}_{\mathrm{queen}} - \vec{v}_{\mathrm{king}}
+          \]
+        </div>
+
+        <h2>Word Embedding in Transformer</h2>
+        <p>
+          In the Transformer, a token starts as a one-hot vector over the vocabulary and is projected into a dense embedding vector. If the vocabulary size is \(V\) and the embedding dimension is \(d_{\mathrm{model}}\), the embedding lookup can be written as:
+        </p>
+        <div class="math-display">
+          \[
+          x_{\mathrm{onehot}} \in \mathbb{R}^{1 \times V}, \qquad
+          E \in \mathbb{R}^{V \times d_{\mathrm{model}}}, \qquad
+          x_{\mathrm{embed}} = x_{\mathrm{onehot}}E \in \mathbb{R}^{1 \times d_{\mathrm{model}}}
+          \]
+        </div>
+        <p>
+          Generalizing to a batch, \(N\) sentences with \(T\) tokens each move from one-hot tensors to embedding tensors:
+        </p>
+        <div class="math-display">
+          \[
+          [N,T,V] \rightarrow [N,T,d_{\mathrm{model}}]
+          \]
+        </div>
+        <p>
+          In the base Transformer, \(d_{\mathrm{model}} = 512\). For a vocabulary around 37,000 tokens, this gives the practical intuition of replacing a very high-dimensional sparse vector with a 512-dimensional dense vector.
+        </p>
+
+        <h2>Why Positional Encoding Is Needed</h2>
+        <p>
+          RNNs process input sequences step by step. A hidden state \(h_t\) depends on \(h_{t-1}\), so position is naturally entangled with the recurrence:
+        </p>
+        <div class="math-display">
+          \[
+          h_t = f_W(h_{t-1}, x_t)
+          \]
+        </div>
+        <p>
+          The Transformer, by contrast, processes all tokens in parallel. This gives up the implicit time order that RNN hidden states carry. Therefore, token position must be injected explicitly.
+        </p>
+
+        <h2>Positional Encoding in Transformer</h2>
+        <p>
+          The sinusoidal positional encoding uses sine for even dimensions and cosine for odd dimensions. Here, \(pos\) is the token position, \(i\) is the dimension-pair index, and \(d_{\mathrm{model}}\) is the embedding dimension.
+        </p>
+        <div class="math-display">
+          \[
+          PE_{(pos,2i)} = \sin\left(\frac{pos}{10000^{2i/d_{\mathrm{model}}}}\right)
+          \]
+        </div>
+        <div class="math-display">
+          \[
+          PE_{(pos,2i+1)} = \cos\left(\frac{pos}{10000^{2i/d_{\mathrm{model}}}}\right)
+          \]
+        </div>
+        <p>
+          Each dimension uses a sinusoid with a different wavelength. Lower dimensions cycle faster, while higher dimensions cycle more slowly. This makes position visible to the model without using recurrence.
+        </p>
+        <p>
+          For a token such as "dog" at index 2, the positional vector is added directly to the embedding vector:
+        </p>
+        <div class="math-display">
+          \[
+          x_{\mathrm{input}} = x_{\mathrm{embed}} + PE_{pos}
+          \]
+        </div>
+
+        <h2>Attention in Seq2Seq</h2>
+        <p>
+          In sequence-to-sequence attention, the decoder state can serve as a query \(Q\). Encoder hidden states serve as keys \(K\) and values \(V\). The dot product \(QK^\top\) scores how related the decoder state is to each encoder state.
+        </p>
+        <div class="math-display">
+          \[
+          \mathrm{Attention}(Q,K,V) = \mathrm{softmax}(QK^\top)V
+          \]
+        </div>
+        <p>
+          The softmax turns scores into attention weights. Multiplying those weights by \(V\) creates a weighted context vector. This helps the decoder focus on relevant input tokens instead of relying only on one compressed final encoder state.
+        </p>
+
+        <h2>Why Add Attention to Seq2Seq?</h2>
+        <p>
+          A plain encoder-decoder model compresses the input sentence into a context vector. For long inputs, this becomes a bottleneck: a lot of information has to fit through one summary representation. Attention lets the decoder look back at different encoder states, which is especially useful for translation where input and output lengths can differ.
+        </p>
+
+        <h2>Self-Attention in Transformer</h2>
+        <p>
+          Transformer attention includes self-attention inside the encoder and decoder. In self-attention, the same sequence supplies the inputs used to produce \(Q\), \(K\), and \(V\). Encoder self-attention relates encoder tokens to other encoder tokens; decoder self-attention relates generated-side tokens to previous generated-side tokens.
+        </p>
+        <p>
+          The encoder-decoder attention still exists: decoder outputs become queries, and encoder outputs become keys and values. That is the cross-attention block.
+        </p>
+
+        <h2>Scaled Dot-Product Attention</h2>
+        <p>
+          Transformer self-attention uses scaled dot-product attention:
+        </p>
+        <div class="math-display">
+          \[
+          \mathrm{Attention}(Q,K,V) =
+          \mathrm{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
+          \]
+        </div>
+        <p>
+          The division by \(\sqrt{d_k}\) matters. If \(q\) and \(k\) have components with mean \(0\) and variance \(1\), their dot product has variance \(d_k\):
+        </p>
+        <div class="math-display">
+          \[
+          \mathrm{Var}(q \cdot k) = d_k
+          \]
+        </div>
+        <p>
+          With \(d_k = 64\), the standard deviation is \(8\). Dot-product scores can become large, softmax can saturate near 0 or 1, and gradients can become small. Scaling keeps the scores in a more workable range.
+        </p>
+
+        <h2>Multi-Head Attention</h2>
+        <p>
+          Multi-head attention is like having several attention filters. Each head has its own learned projections, so different heads can extract different relational patterns.
+        </p>
+        <div class="math-display">
+          \[
+          \mathrm{head}_i =
+          \mathrm{Attention}(QW_i^Q, KW_i^K, VW_i^V)
+          \]
+        </div>
+        <div class="math-display">
+          \[
+          \mathrm{MultiHead}(Q,K,V) =
+          \mathrm{Concat}(\mathrm{head}_1,\ldots,\mathrm{head}_h)W^O
+          \]
+        </div>
+        <p>
+          In the base Transformer, \(h=8\). With \(d_{\mathrm{model}} = 512\), each head uses \(d_k = d_v = 64\). After attention is computed in parallel, the head outputs are concatenated and linearly transformed.
+        </p>
+
+        <h2>Masking in Transformer</h2>
+        <p>
+          The decoder must generate output tokens one at a time. Future tokens should not affect the current token's prediction. Masking solves this by adding \(-\infty\) to illegal future attention scores before softmax:
+        </p>
+        <div class="math-display">
+          \[
+          \mathrm{softmax}(QK^\top + M)
+          \]
+        </div>
+        <p>
+          Positions that should be masked become probability \(0\) after softmax. The result is then multiplied by \(V\).
+        </p>
+
+        <h2>Cross-Attention in Transformer</h2>
+        <p>
+          Cross-attention works like the attention used in seq2seq. The decoder's self-attention output supplies the query. The encoder output supplies keys and values:
+        </p>
+        <div class="math-display">
+          \[
+          Q = H_{\mathrm{decoder}}, \qquad
+          K = H_{\mathrm{encoder}}, \qquad
+          V = H_{\mathrm{encoder}}
+          \]
+        </div>
+
+        <h2>Addition: Residual Connection</h2>
+        <p>
+          After a sublayer such as multi-head attention, the Transformer adds the original input back to the sublayer output. This skip connection helps preserve original information and improves gradient flow.
+        </p>
+        <div class="math-display">
+          \[
+          x_{\mathrm{residual}} = x + \mathrm{Sublayer}(x)
+          \]
+        </div>
+
+        <h2>Covariate Shift and Layer Normalization</h2>
+        <p>
+          During training, earlier layers keep changing their parameters, so the distributions seen by later layers can also shift. Layer normalization keeps each sample's representation on a more stable scale, which supports smoother gradients and faster training.
+        </p>
+        <div class="math-display">
+          \[
+          \mu = \frac{1}{d}\sum_{j=1}^{d}x_j,
+          \qquad
+          \sigma = \sqrt{\frac{1}{d}\sum_{j=1}^{d}(x_j-\mu)^2+\epsilon}
+          \]
+        </div>
+        <div class="math-display">
+          \[
+          \mathrm{LayerNorm}(x)_j =
+          \gamma_j\frac{x_j-\mu}{\sigma}+\beta_j
+          \]
+        </div>
+        <p>
+          In the Transformer block, residual addition and layer normalization are tied together:
+        </p>
+        <div class="math-display">
+          \[
+          \mathrm{LayerNorm}(x + \mathrm{Sublayer}(x))
+          \]
+        </div>
+
+        <h2>Why Layer Norm Instead of Batch Norm?</h2>
+        <p>
+          Batch normalization calculates statistics across a batch dimension. For text, batches often require padding:
+        </p>
+        <ul>
+          <li>Sentence 1: <code>[I, love, big, brother]</code></li>
+          <li>Sentence 2: <code>[Winston, is, dead, &lt;PAD&gt;]</code></li>
+          <li>Sentence 3: <code>[Thoughtcrime, &lt;PAD&gt;, &lt;PAD&gt;, &lt;PAD&gt;]</code></li>
+        </ul>
+        <p>
+          Batch norm can mix real tokens with padding tokens when computing column-wise statistics. Layer norm instead computes statistics within each sample representation, which fits variable-length text more naturally.
+        </p>
+
+        <h2>Takeaway</h2>
+        <p>
+          The Transformer replaces recurrence with attention. Embeddings provide semantic vectors, positional encodings inject order, scaled dot-product attention computes token relationships, multi-head attention lets the model learn several relation types in parallel, and residual layer normalization stabilizes deep stacking.
+        </p>
+
+        <p class="source-note">
+          Source: Vaswani et al., <a href="https://arxiv.org/abs/1706.03762" rel="noreferrer">Attention Is All You Need</a>.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <p>Study Logging</p>
+      <p>Built for GitHub Pages.</p>
+    </footer>
+
+    <script src="../assets/js/main.js" defer></script>
+  </body>
+</html>
